@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Walk Cycle Player</title>
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--ink:#1d1d1b;--mut:#6b6a64;--line:#dcdad2;--acc:#0f766e;--accink:#fff;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#171716;--card:#232321;--ink:#eeede8;--mut:#a09f97;--line:#3a3935;--acc:#2dd4bf;--accink:#0b1f1c}}
+:root[data-theme="dark"]{--bg:#171716;--card:#232321;--ink:#eeede8;--mut:#a09f97;--line:#3a3935;--acc:#2dd4bf;--accink:#0b1f1c}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{height:100%;max-width:1500px;margin:0 auto;padding:10px 14px;display:flex;flex-direction:column;gap:10px}
+header{display:flex;align-items:baseline;gap:12px;flex:0 0 auto}
+h1{font-size:18px;margin:0}
+.sub{margin:0;color:var(--mut);font-size:12.5px}
+.main{flex:1 1 0;min-height:0;display:grid;grid-template-columns:1fr 290px;gap:10px}
+@media(max-width:760px){.main{grid-template-columns:1fr;grid-template-rows:1fr auto}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;min-height:0}
+.prev{display:flex;flex-direction:column;gap:8px}
+.stage{flex:1 1 0;min-height:0;display:flex;align-items:center;justify-content:center;border-radius:8px;position:relative;overflow:hidden;
+background-image:linear-gradient(45deg,#8883 25%,transparent 25%,transparent 75%,#8883 75%),linear-gradient(45deg,#8883 25%,transparent 25%,transparent 75%,#8883 75%);
+background-size:16px 16px;background-position:0 0,8px 8px}
+#cv{width:60%;height:60%;object-fit:contain;display:block}
+#empty{position:absolute;color:var(--mut);text-align:center;padding:20px}
+.bar{display:flex;align-items:center;gap:8px;flex:0 0 auto;flex-wrap:wrap}
+.bar .info{margin-left:auto;font-size:12.5px;color:var(--mut)}
+button,select,input[type=text]{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+button{cursor:pointer}
+button:hover{border-color:var(--acc)}
+button.pri{background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:600}
+.ctl{display:flex;flex-direction:column;gap:10px;overflow:auto}
+label.f{display:grid;gap:3px;font-size:12.5px;color:var(--mut)}
+label.f b{color:var(--ink);font-weight:600}
+label.f select,label.f input[type=text]{width:100%}
+input[type=range]{width:100%;accent-color:var(--acc);margin:2px 0}
+.row{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center}
+.chk{display:flex;align-items:center;gap:6px}
+.chk input{accent-color:var(--acc)}
+.tray{flex:0 0 auto;display:flex;flex-direction:column;gap:8px;height:178px}
+.tray .row{gap:8px}
+#strip{flex:1 1 0;min-height:0;display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;border:2px dashed var(--line);border-radius:10px;padding:6px;align-items:stretch}
+#strip.over{border-color:var(--acc);background:#0f766e14}
+#hint{margin:auto;color:var(--mut);font-size:13px;text-align:center}
+.th{flex:0 0 auto;width:96px;display:flex;flex-direction:column;border:2px solid var(--line);border-radius:8px;padding:3px;background:var(--card);text-align:center;font-size:12px;cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none}
+.th.cur{border-color:var(--acc)}
+.th.off{opacity:.4}
+.th.drag{opacity:.35}
+.th.ins-l{box-shadow:-5px 0 0 var(--acc)}
+.th.ins-r{box-shadow:5px 0 0 var(--acc)}
+.th img{width:100%;flex:1 1 0;min-height:0;object-fit:contain;display:block;pointer-events:none}
+.th .n{color:var(--mut)}
+.th .b{display:flex;justify-content:space-between;gap:2px}
+.th .b button{padding:0 6px;font-size:12px;border-radius:6px;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Walk Cycle Player</h1>
+    <p class="sub">Unggah frame gambar, atur kecepatan dan urutan, lalu lihat animasinya.</p>
+  </header>
+
+  <div class="main">
+    <div class="card prev">
+      <div class="stage" id="stage">
+        <canvas id="cv" width="320" height="320"></canvas>
+        <div id="empty">Belum ada frame.<br>Klik “Pilih gambar” di bawah atau seret gambar ke area frame.</div>
+      </div>
+      <div class="bar">
+        <button id="prev" title="Frame sebelumnya (←)">⏮</button>
+        <button id="play" class="pri" title="Spasi">▶ Play</button>
+        <button id="next" title="Frame berikutnya (→)">⏭</button>
+        <span class="info" id="info">Frame –</span>
+      </div>
+    </div>
+
+    <div class="card ctl">
+      <label class="f"><span>Kecepatan: <b id="fpsV">8</b> FPS</span>
+        <input type="range" id="fps" min="1" max="30" value="8"></label>
+      <label class="f"><span>Mode putar</span>
+        <select id="mode">
+          <option value="loop">Loop (ulang terus)</option>
+          <option value="pingpong">Ping-pong (maju-mundur)</option>
+          <option value="once">Sekali saja</option>
+        </select></label>
+      <label class="f"><span>Ukuran preview: <b id="zV">60</b>%</span>
+        <input type="range" id="zoom" min="10" max="100" step="5" value="60"></label>
+      <div class="row">
+        <label class="chk"><input type="checkbox" id="rev"> Balik arah</label>
+        <label class="chk"><input type="checkbox" id="flip"> Cermin</label>
+        <label class="chk"><input type="checkbox" id="pix"> Pixel art</label>
+      </div>
+      <label class="f"><span>Latar</span>
+        <select id="bgc">
+          <option value="">Transparan (kotak-kotak)</option>
+          <option value="#ffffff">Putih</option>
+          <option value="#1d1d1b">Hitam</option>
+          <option value="#9ad7a0">Hijau</option>
+          <option value="#9cc7f0">Biru muda</option>
+        </select></label>
+    </div>
+  </div>
+
+  <div class="card tray">
+    <div class="row">
+      <button class="pri" id="pick">Pilih gambar</button>
+      <button id="sortName">Urutkan nama</button>
+      <button id="revList">Balik urutan</button>
+      <button id="clear">Hapus semua</button>
+      <span class="sub">Klik frame untuk menampilkannya di preview. Seret untuk mengubah urutan. ✓ = aktif/lewati, ✕ = hapus.</span>
+      <input type="file" id="file" accept="image/*" multiple hidden>
+    </div>
+    <div id="strip"><div id="hint">Seret dan lepas gambar di sini (urut otomatis sesuai nama file)</div></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+let frames = [];          // {src, name, img, on}
+let pos = 0, playing = false, acc = 0, last = 0, drag = null, forceIdx = null;
+
+function readFile(f){
+  return new Promise(res => {
+    const r = new FileReader();
+    r.onload = () => { const img = new Image(); img.onload = () => res({src:r.result,name:f.name,img,on:true}); img.onerror = () => res(null); img.src = r.result; };
+    r.onerror = () => res(null);
+    r.readAsDataURL(f);
+  });
+}
+async function addFiles(list){
+  const files = [...list].filter(f => f.type.startsWith('image/'))
+    .sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
+  const out = (await Promise.all(files.map(readFile))).filter(Boolean);
+  if(!out.length) return;
+  mutate(() => frames.push(...out), true);
+}
+function setSize(){
+  if(!frames.length) return;
+  const im = frames[0].img;
+  cv.width = im.naturalWidth || 320; cv.height = im.naturalHeight || 320;
+}
+function applyZoom(){
+  const z = $('zoom').value;
+  $('zV').textContent = z;
+  cv.style.width = z + '%'; cv.style.height = z + '%';
+}
+function buildSeq(){
+  let s = frames.map((f,i) => f.on ? i : -1).filter(i => i>=0);
+  if($('mode').value === 'pingpong' && s.length > 2) s = s.concat(s.slice(1,-1).reverse());
+  if($('rev').checked) s = s.slice().reverse();
+  return s;
+}
+function afterChange(resize){
+  if(resize) setSize();
+  pos = 0; forceIdx = null; renderStrip(); draw();
+}
+function currentFrame(){
+  const seq = buildSeq();
+  return frames[forceIdx !== null ? forceIdx : seq[pos]];
+}
+// ubah daftar frame tanpa mengganggu frame yang sedang tampil / diputar
+function mutate(fn, resize){
+  const wasForced = forceIdx !== null;
+  const cur = currentFrame();
+  fn();
+  if(resize) setSize();
+  const ni = cur ? frames.indexOf(cur) : -1;
+  if(ni < 0){ pos = 0; forceIdx = null; }
+  else if(wasForced) forceIdx = ni;
+  else { const p = buildSeq().indexOf(ni); pos = p >= 0 ? p : 0; }
+  renderStrip(); draw();
+}
+function draw(){
+  const seq = buildSeq();
+  $('empty').style.display = frames.length ? 'none' : 'block';
+  ctx.clearRect(0,0,cv.width,cv.height);
+  if(forceIdx !== null && forceIdx >= frames.length) forceIdx = null;
+  if(!seq.length && forceIdx === null){ $('info').textContent = 'Frame –'; return; }
+  if(pos >= seq.length) pos = Math.max(0, seq.length - 1);
+  const fi = forceIdx !== null ? forceIdx : seq[pos], im = frames[fi].img;
+  ctx.imageSmoothingEnabled = !$('pix').checked;
+  const sc = Math.min(cv.width/im.naturalWidth, cv.height/im.naturalHeight);
+  const w = im.naturalWidth*sc, h = im.naturalHeight*sc;
+  ctx.save();
+  if($('flip').checked){ ctx.translate(cv.width,0); ctx.scale(-1,1); }
+  ctx.drawImage(im,(cv.width-w)/2,(cv.height-h)/2,w,h);
+  ctx.restore();
+  cv.style.imageRendering = $('pix').checked ? 'pixelated' : 'auto';
+  $('info').textContent = forceIdx !== null ? `Frame ${fi} dari ${frames.length-1}` : `Frame ${fi} dari ${frames.length-1} · langkah ${pos+1}/${seq.length}`;
+  document.querySelectorAll('.th').forEach((el,i) => el.classList.toggle('cur', i === fi));
+}
+function advance(d = 1){
+  const seq = buildSeq();
+  forceIdx = null;
+  if(!seq.length) return;
+  pos += d;
+  if(pos >= seq.length){
+    if($('mode').value === 'once' && playing){ pos = seq.length-1; setPlaying(false); return; }
+    pos = 0;
+  }
+  if(pos < 0) pos = seq.length-1;
+}
+function setPlaying(v){
+  playing = v; acc = 0; last = performance.now();
+  if(v) forceIdx = null;
+  $('play').textContent = playing ? '⏸ Pause' : '▶ Play';
+}
+function loop(t){
+  if(playing){
+    const step = 1000 / +$('fps').value;
+    acc += t - last;
+    while(acc >= step){ acc -= step; advance(1); }
+    draw();
+  }
+  last = t;
+  requestAnimationFrame(loop);
+}
+function selectFrame(i){
+  setPlaying(false);
+  forceIdx = i;
+  const p = buildSeq().indexOf(i);
+  if(p >= 0) pos = p;
+  draw();
+}
+function thumbs(){ return [...$('strip').querySelectorAll('.th')]; }
+function insertIndex(x){
+  const t = thumbs();
+  for(let k = 0; k < t.length; k++){
+    const r = t[k].getBoundingClientRect();
+    if(x < r.left + r.width/2) return k;
+  }
+  return t.length;
+}
+function endDrag(){
+  if(drag){
+    if(drag.ghost) drag.ghost.remove();
+    if(drag.ind) drag.ind.remove();
+    if(drag.el) drag.el.classList.remove('drag');
+  }
+  drag = null;
+}
+window.addEventListener('pointermove', e => {
+  if(!drag) return;
+  if(!drag.active){
+    if(Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 6) return;
+    drag.active = true;
+    const r = drag.el.getBoundingClientRect();
+    drag.ox = drag.sx - r.left; drag.oy = drag.sy - r.top;
+    const g = drag.el.cloneNode(true);
+    g.style.cssText = `position:fixed;margin:0;width:${r.width}px;height:${r.height}px;pointer-events:none;z-index:100;opacity:.85;box-shadow:0 6px 18px #0004;`;
+    document.body.appendChild(g); drag.ghost = g;
+    const ind = document.createElement('div');
+    ind.style.cssText = 'position:fixed;width:4px;border-radius:2px;background:var(--acc);pointer-events:none;z-index:101;';
+    document.body.appendChild(ind); drag.ind = ind;
+    drag.el.classList.add('drag');
+  }
+  e.preventDefault();
+  drag.ghost.style.left = (e.clientX - drag.ox) + 'px';
+  drag.ghost.style.top = (e.clientY - drag.oy) + 'px';
+  const strip = $('strip'), sr = strip.getBoundingClientRect();
+  if(e.clientX < sr.left + 50) strip.scrollLeft -= 14;
+  else if(e.clientX > sr.right - 50) strip.scrollLeft += 14;
+  const t = thumbs(), idx = insertIndex(e.clientX);
+  drag.to = idx;
+  if(t.length){
+    const r0 = t[0].getBoundingClientRect();
+    let x = idx < t.length ? t[idx].getBoundingClientRect().left - 6 : t[t.length-1].getBoundingClientRect().right + 2;
+    x = Math.min(Math.max(x, sr.left), sr.right - 4);
+    drag.ind.style.left = x + 'px'; drag.ind.style.top = r0.top + 'px'; drag.ind.style.height = r0.height + 'px';
+  }
+});
+window.addEventListener('pointerup', e => {
+  if(!drag) return;
+  const d = drag, wasActive = d.active;
+  endDrag();
+  if(!wasActive){ selectFrame(d.i); return; }
+  const from = d.i;
+  let to = d.to;
+  if(from < to) to--;
+  if(from === to) return;
+  mutate(() => { const [it] = frames.splice(from, 1); frames.splice(to, 0, it); }, from === 0 || to === 0);
+});
+window.addEventListener('pointercancel', endDrag);
+function renderStrip(){
+  const st = $('strip'); st.innerHTML = '';
+  if(!frames.length){ st.innerHTML = '<div id="hint">Seret dan lepas gambar di sini (urut otomatis sesuai nama file)</div>'; return; }
+  frames.forEach((f,i) => {
+    const d = document.createElement('div');
+    d.className = 'th' + (f.on ? '' : ' off');
+    const im = document.createElement('img'); im.src = f.src; im.alt = f.name; im.draggable = false;
+    const n = document.createElement('div'); n.className = 'n'; n.textContent = '#' + i;
+    const b = document.createElement('div'); b.className = 'b';
+    const mk = (txt, title, fn) => { const x = document.createElement('button'); x.textContent = txt; x.title = title; x.onclick = fn; return x; };
+    b.append(
+      mk('◀','Geser ke kiri',()=>move(i,-1)),
+      mk(f.on?'✓':'○','Aktif / lewati',()=>mutate(()=>{f.on=!f.on;},false)),
+      mk('✕','Hapus',()=>mutate(()=>frames.splice(i,1),true)),
+      mk('▶','Geser ke kanan',()=>move(i,1))
+    );
+    d.append(im,n,b);
+    d.addEventListener('pointerdown', e => {
+      if(e.button !== 0 || e.target.closest('button')) return;
+      drag = {i, sx:e.clientX, sy:e.clientY, active:false, el:d};
+    });
+    st.append(d);
+  });
+}
+function move(i,d){
+  const j = i + d;
+  if(j < 0 || j >= frames.length) return;
+  mutate(() => { [frames[i],frames[j]] = [frames[j],frames[i]]; }, i === 0 || j === 0);
+}
+
+$('pick').onclick = () => $('file').click();
+$('file').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
+$('clear').onclick = () => { frames = []; setPlaying(false); afterChange(false); };
+$('sortName').onclick = () => { mutate(()=>frames.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true})), true); };
+$('revList').onclick = () => mutate(()=>frames.reverse(), true);
+$('play').onclick = () => setPlaying(!playing);
+$('prev').onclick = () => { setPlaying(false); advance(-1); draw(); };
+$('next').onclick = () => { setPlaying(false); advance(1); draw(); };
+$('fps').oninput = () => $('fpsV').textContent = $('fps').value;
+$('zoom').oninput = applyZoom;
+['mode','rev','flip','pix'].forEach(id => $(id).addEventListener('input', () => { pos = 0; forceIdx = null; draw(); }));
+$('bgc').oninput = () => { $('stage').style.backgroundColor = $('bgc').value; $('stage').style.backgroundImage = $('bgc').value ? 'none' : ''; };
+const st = $('strip');
+['dragenter','dragover'].forEach(ev => st.addEventListener(ev, e => { e.preventDefault(); st.classList.add('over'); }));
+['dragleave','drop'].forEach(ev => st.addEventListener(ev, e => { st.classList.remove('over'); }));
+st.addEventListener('drop', e => { e.preventDefault(); addFiles(e.dataTransfer.files); });
+st.addEventListener('wheel', e => { if(Math.abs(e.deltaY) > Math.abs(e.deltaX)){ st.scrollLeft += e.deltaY; e.preventDefault(); } }, {passive:false});
+document.addEventListener('keydown', e => {
+  if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName) && e.target.type !== 'range') return;
+  if(e.code === 'Space'){ e.preventDefault(); setPlaying(!playing); }
+  if(e.code === 'ArrowRight') $('next').click();
+  if(e.code === 'ArrowLeft') $('prev').click();
+});
+applyZoom();
+requestAnimationFrame(loop);
+draw();
+</script>
+</body>
+</html>
